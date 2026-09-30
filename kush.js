@@ -1,45 +1,24 @@
-const express = require("express");
-const cors = require("cors");
+async function summarizeText() {
+    const text = document.getElementById("textInput").value;
+    const summary = document.getElementById("summary");
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+    if (text.trim() === "") {
+        summary.textContent = "Please enter some text first.";
+        return;
+    }
 
-app.use(cors());
-app.use(express.json());
+    summary.textContent = "Generating AI summary...";
 
-app.get("/", (req, res) => {
-    res.json({
-        message: "KnowTest backend is running!"
-    });
-});
-
-app.post("/api/summarize", async (req, res) => {
     try {
-        const { text } = req.body;
-
-        if (!text || !text.trim()) {
-            return res.status(400).json({
-                error: "Please provide some text."
-            });
-        }
-
-        const response = awaitfetch("https://knowtest-backend.onrender.com/api/summarize", 
+        const response = await fetch(
+            "https://knowtest-backend.onrender.com/api/summarize",
             {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${process.env.GROQ_API_KEY}`
+                    "Content-Type": "application/json"
                 },
                 body: JSON.stringify({
-                    model: "openai/gpt-oss-20b",
-                    messages: [
-                        {
-                            role: "user",
-                            content: `Summarize the following text clearly and concisely:
-
-${text}`
-                        }
-                    ]
+                    text: text
                 })
             }
         );
@@ -47,28 +26,15 @@ ${text}`
         const data = await response.json();
 
         if (!response.ok) {
-            console.error("Groq error:", data);
-
-            return res.status(response.status).json({
-                error: data.error?.message || "AI service error."
-            });
+            throw new Error(data.error || "Failed to generate summary.");
         }
 
-        const summary = data.choices?.[0]?.message?.content;
-
-        res.json({
-            summary: summary
-        });
+        summary.textContent = data.summary;
 
     } catch (error) {
-        console.error("Server error:", error);
+        console.error("Error:", error);
 
-        res.status(500).json({
-            error: "Failed to generate summary."
-        });
+        summary.textContent =
+            "Unable to connect to the AI backend. Please try again.";
     }
-});
-
-app.listen(PORT, "0.0.0.0", () => {
-    console.log(`KnowTest backend running on port ${PORT}`);
-});
+}
