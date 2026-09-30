@@ -1,37 +1,74 @@
-async function summarizeText() {
-    const text = document.getElementById("textInput").value;
-    const summary = document.getElementById("summary");
+const express = require("express");
+const cors = require("cors");
 
-    if (text.trim() === "") {
-        summary.textContent = "Please enter some text first.";
-        return;
-    }
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-    summary.textContent = "Generating AI summary...";
+app.use(cors());
+app.use(express.json());
 
+app.get("/", (req, res) => {
+    res.json({
+        message: "KnowTest backend is running!"
+    });
+});
+
+app.post("/api/summarize", async (req, res) => {
     try {
-        const response = await fetch("http://localhost:3000/api/summarize", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                text: text
-            })
-        });
+        const { text } = req.body;
+
+        if (!text || !text.trim()) {
+            return res.status(400).json({
+                error: "Please provide some text."
+            });
+        }
+
+        const response = awaitfetch("https://knowtest-backend.onrender.com/api/summarize", 
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${process.env.GROQ_API_KEY}`
+                },
+                body: JSON.stringify({
+                    model: "openai/gpt-oss-20b",
+                    messages: [
+                        {
+                            role: "user",
+                            content: `Summarize the following text clearly and concisely:
+
+${text}`
+                        }
+                    ]
+                })
+            }
+        );
 
         const data = await response.json();
 
         if (!response.ok) {
-            throw new Error(data.error || "Failed to generate summary.");
+            console.error("Groq error:", data);
+
+            return res.status(response.status).json({
+                error: data.error?.message || "AI service error."
+            });
         }
 
-        summary.textContent = data.summary;
+        const summary = data.choices?.[0]?.message?.content;
+
+        res.json({
+            summary: summary
+        });
 
     } catch (error) {
-        console.error("Error:", error);
+        console.error("Server error:", error);
 
-        summary.textContent =
-            "Unable to connect to the AI backend. Make sure the backend is running.";
+        res.status(500).json({
+            error: "Failed to generate summary."
+        });
     }
-}
+});
+
+app.listen(PORT, "0.0.0.0", () => {
+    console.log(`KnowTest backend running on port ${PORT}`);
+});
