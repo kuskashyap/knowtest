@@ -2,19 +2,17 @@ const express = require("express");
 const cors = require("cors");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 
-// Test route
 app.get("/", (req, res) => {
     res.json({
         message: "KnowTest backend is running!"
     });
 });
 
-// AI Summarizer using Ollama
 app.post("/api/summarize", async (req, res) => {
     try {
         const { text } = req.body;
@@ -25,32 +23,52 @@ app.post("/api/summarize", async (req, res) => {
             });
         }
 
-        const response = await fetch("http://localhost:11434/api/generate", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                model: "llama3.2:3b",
-                prompt: `Summarize the following text clearly and concisely:
+        const response = await fetch(
+            "https://api.groq.com/openai/v1/chat/completions",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${process.env.GROQ_API_KEY}`
+                },
+                body: JSON.stringify({
+                    model: "openai/gpt-oss-20b",
+                    messages: [
+                        {
+                            role: "user",
+                            content: `Summarize the following text clearly and concisely:
 
-${text}`,
-                stream: false
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error(`Ollama returned status ${response.status}`);
-        }
+${text}`
+                        }
+                    ]
+                })
+            }
+        );
 
         const data = await response.json();
 
+        if (!response.ok) {
+            console.error("Groq error:", data);
+
+            return res.status(response.status).json({
+                error: data.error?.message || "AI service error."
+            });
+        }
+
+        const summary = data.choices?.[0]?.message?.content;
+
+        if (!summary) {
+            return res.status(500).json({
+                error: "No summary returned."
+            });
+        }
+
         res.json({
-            summary: data.response
+            summary: summary
         });
 
     } catch (error) {
-        console.error("Ollama API error:", error);
+        console.error("Server error:", error);
 
         res.status(500).json({
             error: "Failed to generate summary."
@@ -58,7 +76,6 @@ ${text}`,
     }
 });
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`KnowTest backend running at http://localhost:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+    console.log(`KnowTest backend running on port ${PORT}`);
 });
